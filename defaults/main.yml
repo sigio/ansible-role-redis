@@ -1,0 +1,18 @@
+---
+
+redis_run_sentinel: true
+
+# When running sentinel, the sentinel process will update it's own and redis' config
+# files, so don't do this again from ansible unless forced by setting this to true
+overwrite_redis_config: false
+
+redis_maxmemory: 384MB
+redis_maxclients: 4000
+
+redis_notify_from: "root@{{ansible_nodename}}"
+redis_notify_to: "root@{{ansible_nodename}}"
+redis_bind: "{{ansible_default_ipv4.address}}"
+
+# IP for the master redis node
+redis_master_ip: "1.2.3.4"
+redis_cluster_name: "rediscluster"

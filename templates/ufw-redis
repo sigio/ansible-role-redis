@@ -1,0 +1,11 @@
+# {{ ansible_managed }}
+
+[redis]
+title=Redis Database
+description=Redis server
+ports=6379/tcp
+
+[redis-sentinel]
+title=Redis Clustering Sentinel
+description=Redis Clustering Sentinel
+ports=26379/tcp

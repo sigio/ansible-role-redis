@@ -1,0 +1,89 @@
+---
+
+- name: Install redis
+  apt:
+    state: present
+    pkg:
+    - redis-server
+    - redis-tools
+    - redis-sentinel
+  tags:
+    - redis
+
+- name: Template redis configuration files
+  template: src={{item.src}} dest="{{item.dest}}" owner="{{item.owner|default('redis')}}" group="{{item.group|default('redis')}}" mode="{{item.mode|default('0640')}}"
+  with_items:
+    - { src: "redis.conf", dest: "/etc/redis/redis.conf" }
+    - { src: "sentinel.conf", dest: "/etc/redis/sentinel.conf" }
+  when: redis_run_sentinel|bool == false or overwrite_redis_config|bool
+  tags:
+    - redis
+    - redisconf
+  notify:
+    - reload redis
+    - reload redis-sentinel
+
+- name: Template redis other files
+  template: src={{item.src}} dest="{{item.dest}}" owner="{{item.owner|default('redis')}}" group="{{item.group|default('redis')}}" mode="{{item.mode|default('0640')}}"
+  with_items:
+#    - { src: "ufw-redis", dest: "/etc/ufw/applications.d/redis", owner: "root", group: "root", mode: "0644" }
+    - { src: "notify.sh", dest: "/var/lib/redis/notify.sh", owner: "root", group: "root", mode: "0755" }
+  tags:
+    - redis
+  notify:
+    - reload redis
+    - reload redis-sentinel
+
+- name: Set sysctl values for redis
+  sysctl: sysctl_file=/etc/sysctl.d/99-redis.conf name="{{item.name}}" value="{{item.value}}" state=present sysctl_set=yes reload=yes
+  with_items:
+    - { name: "net.core.somaxconn", value: "1024" }
+  tags:
+    - redis
+    - sysctl
+  notify:
+    - reload redis
+    - reload redis-sentinel
+
+- name: Set Limits for Redis
+  ini_file: path=/lib/systemd/system/redis-server.service section="{{item.section}}" option="{{item.option}}" value="{{item.value}}"
+  with_items:
+    - { section: "Service", option: "LimitNOFILE", value: "65535" }
+  notify:
+    - reload systemd
+  tags:
+    - redis
+    - ulimit
+
+#- name: Allow redis communication
+#  ufw: rule=allow name="{{item[0]}}" src="{{item[1]}}"
+#  with_nested:
+#    - [ "redis", "redis-sentinel" ]
+#    - "{{cluster_ips}}"
+#  when: ufw_enabled|bool
+#  tags:
+#    - firewall
+#    - redis
+
+- name: Enable and start redis service
+  service: name={{item}} state=started enabled=true
+  with_items:
+    - redis
+  tags:
+    - redis
+
+- name: Enable and start redis sentinel
+  service: name={{item}} state=started enabled=true
+  with_items:
+    - redis-sentinel
+  tags:
+    - redis
+  when: redis_run_sentinel|bool
+
+- name: Disable and stop redis sentinel
+  service: name={{item}} state=stopped enabled=false
+  with_items:
+    - redis-sentinel
+  tags:
+    - redis
+  when: not redis_run_sentinel|bool
